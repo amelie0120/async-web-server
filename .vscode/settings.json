@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "aio_abi.h": "c",
+        "libaio.h": "c"
+    }
+}
