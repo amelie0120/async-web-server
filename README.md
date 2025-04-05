@@ -1,197 +1,92 @@
 # Asynchronous Web Server
 
-## Objectives
+## Overview
 
-- Deepening the concepts related to working with sockets.
-- Developing skills in implementing and designing applications that use asynchronous operations and other advanced I/O operations.
-- Deepening the use of the API for advanced I/O operations in the Linux operating system.
+I implemented a high-performance asynchronous web server that leverages several advanced I/O operations in Linux. This project helped me:
 
-## Statement
+- Deepen my understanding of socket programming
+- Implement and design applications using asynchronous I/O operations
+- Master advanced I/O techniques in the Linux operating system
 
-Implement a web server that uses the following advanced I/O operations:
+The resulting web server efficiently handles multiple concurrent connections using a non-blocking, event-driven design pattern.
 
-- Asynchronous operations on files
-- Non-blocking operations on sockets
-- Zero-copying
-- Multiplexing I/O operations
+## Features Implemented
 
-The server implements a limited functionality of the HTTP protocol: passing files to clients.
+### Advanced I/O Operations
 
-The web server will use the multiplexing API to wait for connections from clients - [epoll](https://man7.org/linux/man-pages/man7/epoll.7.html).
-On the established connections, requests from clients will be received and then responses will be distributed to them.
+I successfully implemented a web server that utilizes the following advanced I/O techniques:
 
+- **Asynchronous File Operations**: Used Linux's asynchronous I/O API to read files without blocking
+- **Non-blocking Socket Operations**: Implemented non-blocking I/O for socket connections to handle multiple clients simultaneously
+- **Zero-copying**: Utilized the `sendfile()` system call to transfer file data directly from kernel space to the socket without copying to user space
+- **I/O Multiplexing**: Employed the `epoll` API to efficiently monitor multiple file descriptors for events
 
-The server will serve files from the `AWS_DOCUMENT_ROOT` directory, defined within the assignments' [header](./skel/aws.h).
-Files are only found in subdirectories `AWS_DOCUMENT_ROOT/static/` and `AWS_DOCUMENT_ROOT/dynamic/`.
-The corresponding request paths will be, for example, `AWS_DOCUMENT_ROOT/static/test.dat` and `AWS_DOCUMENT_ROOT/dynamic/test.dat`.
-The file processing will be:
+### HTTP Protocol Implementation
 
-- The files in the `AWS_DOCUMENT_ROOT/static/` directory are static files that will be transmitted to clients using the zero-copying API - [sendfile](https://man7.org/linux/man-pages/man2/sendfile.2.html)]
-- Files in the `AWS_DOCUMENT_ROOT/dynamic/` directory are files that are supposed to require a server-side post-processing phase. These files will be read from disk using the asynchronous API and then pushed to the clients. Streaming will use non-blocking sockets (Linux)
-- An [HTTP 404](https://en.wikipedia.org/wiki/HTTP_404) message will be sent for invalid request paths
+The server implements a focused subset of the HTTP protocol for file serving:
 
-After transmitting a file, according to the HTTP protocol, the connection is closed.
+- Properly formatted HTTP responses with appropriate headers
+- HTTP 200 responses for successful file retrieval
+- HTTP 404 responses for invalid paths
+- Connection closing after file transmission in accordance with the HTTP protocol
 
-### Details and recommendations for the implementation
+### Resource Handling
 
-- Implementing the assignment requires having a state machine for each connection, which you periodically query and update as the transfer proceeds.
-Check the `connection_state` data structure defined in the [assignment header](./skel/awh.h).
-- Find the `connection` data structure defined in the [assignment header](./skel/awh.h).
-This can be used to keep track of an open connection.
-- Definitions of other useful macros and data structures can be found in the assignment header.
-- HTTP responses will have the code `200` for existing files and `404` for not existing files.
-    - A valid response consists of the HTTP header, containing the related directives, two newlines (`\r\n\r\n`), followed by the actual content (the file).
-    - Sample answers can be found in the parser test file or in the provided sample.
-    - You can use predefined request directives such as `Date`, `Last-Modified`, etc.
-        - The `Content-Length` directive **must** specify the size of the HTTP content (actual data) in bytes.
-        - The `Connection` directive **must** be initialized to `close`.
-- The port on which the web server listens for connections is defined within the assignment header: the `AWS_LISTEN_PORT` macro.
-- The root directory relative to which the resources/files are searched is defined within the assignment header as the `AWS_DOCUMENT_ROOT` macro.
+I implemented two distinct file-serving methods based on the requested resource type:
 
-## Support Code
+- **Static Files**: Files from the `static/` directory are transmitted using zero-copy operations (`sendfile()`) for maximum performance
+- **Dynamic Files**: Files from the `dynamic/` directory are processed asynchronously and served using non-blocking socket operations
 
-### HTTP Parser
+## Implementation Details
 
-The clients and server will communicate using the HTTP protocol.
-For parsing HTTP requests from clients we recommend using [this HTTP parser](https://github.com/nodejs/http-parser), also available in the assignments' [http-parser](./skel/http-parser).
-You will need to use a callback to get the path to the local resource requested by the client.
-Find a simplified example of using the parser in the [samples directory](./skel/http-parser/samples/).
+### State Machine Architecture
 
-### API and Implementation Tasks
+I designed a state machine for each connection to track its progress through the various stages:
 
-The [skel/aws.c](./skel/aws.c) file contains the code skelethon with several functions that have to be implemented.
-Follow the `TODO` areas in the file to start your implementation.
+- Connection establishment
+- Request parsing
+- Resource identification
+- Response preparation
+- File transmission
+- Connection termination
 
-> It can be reorganized as desired, as long as all the requirements of the assignment are implemented.
+This approach allowed for clean handling of the asynchronous nature of the operations.
 
-## Testing and Grading
+### Connection Management
 
-The testing is automated.
-Tests are located in the `tests/` directory.
+Each connection is tracked using a dedicated data structure containing:
 
-To test your implementation, do the following steps:
+- Socket file descriptor
+- Current state in the state machine
+- Buffer for request/response data
+- File information and transmission progress
+- Asynchronous operation context
 
-- Run the `make` command inside the `skel/` directory and make sure it compiles with no errors and that the `aws` executable is generated.
-- Run the `make check` command in the `tests/` directory.
+### HTTP Request Parsing
 
-There are 35 tests for this assignment, of which 13 are doubled by a memory leak check test.
-A successful run looks as the following:
+I integrated an HTTP parser to extract the requested resource path from client requests, implementing the callback mechanism to handle the parsed data correctly.
 
-```
-student@so:~/operating-systems/content/assignments/async-web-server/tests$ make check
-make -C _test
-make[1]: Entering directory '/home/student/operating-systems/content/assignments/async-web-server/tests/_test'
-make[1]: Nothing to be done for 'all'.
-make[1]: Leaving directory '/home/student/operating-systems/content/assignments/async-web-server/tests/_test'
+### Event-driven Architecture
 
-                        = Testing - Asynchronous Web Server =
+The server uses an event-driven architecture to handle I/O events:
 
-01) Test executable exists.............................................passed  [01/90]
-02) Test executable runs...............................................passed  [01/90]
-03) Test listening.....................................................passed  [01/90]
-04) Test listening on port.............................................passed  [01/90]
-05) Test accepts connections...........................................passed  [01/90]
-06) Test accepts multiple connections..................................passed  [01/90]
-07) Test epoll usage...................................................passed  [01/90]
-08) Test disconnect....................................................passed  [01/90]
-09) Test multiple disconnect...........................................passed  [01/90]
-10) Test connect disconnect connect....................................passed  [01/90]
-11) Test multiple connect disconnect connect...........................passed  [01/90]
-12) Test unordered connect disconnect connect..........................passed  [01/90]
-13) Test replies http request..........................................passed  [02/90]
-13) Test replies http request - memcheck...............................passed  [01/90]
-14) Test second replies http request...................................passed  [01/90]
-15) Test sendfile usage................................................passed  [02/90]
-16) Test small static file wget........................................passed  [02/90]
-17) Test small static file wget cmp....................................passed  [04/90]
-17) Test small static file wget cmp - memcheck.........................passed  [01/90]
-18) Test large static file wget........................................passed  [02/90]
-19) Test large static file wget cmp....................................passed  [04/90]
-19) Test large static file wget cmp - memcheck.........................passed  [01/90]
-20) Test bad static file 404...........................................passed  [02/90]
-21) Test bad path 404..................................................passed  [02/90]
-22) Test get one static file then another..............................passed  [02/90]
-22) Test get one static file then another - memcheck...................passed  [01/90]
-23) Test get two simultaneous static files.............................passed  [03/90]
-23) Test get two simultaneous static files - memcheck..................passed  [01/90]
-24) Test get multiple simultaneous static files........................passed  [04/90]
-24) Test get multiple simultaneous static files - memcheck.............passed  [01/90]
-25) Test io submit uses................................................passed  [02/90]
-26) Test small dynamic file wget.......................................passed  [02/90]
-27) Test small dynamic file wget cmp...................................passed  [04/90]
-27) Test small dynamic file wget cmp - memcheck........................passed  [01/90]
-28) Test large dynamic file wget.......................................passed  [02/90]
-29) Test large dynamic file wget cmp...................................passed  [04/90]
-29) Test large dynamic file wget cmp - memcheck........................passed  [01/90]
-30) Test bad dynamic file 404..........................................passed  [02/90]
-31) Test get one dynamic file then another.............................passed  [03/90]
-31) Test get one dynamic file then another - memcheck..................passed  [01/90]
-32) Test get two simultaneous dynamic files............................passed  [04/90]
-32) Test get two simultaneous dynamic files - memcheck.................passed  [01/90]
-33) Test get multiple simultaneous dynamic files.......................passed  [05/90]
-33) Test get multiple simultaneous dynamic files - memcheck............passed  [01/90]
-34) Test get two simultaneous static and dynamic files.................passed  [03/90]
-34) Test get two simultaneous static and dynamic files - memcheck......passed  [01/90]
-35) Test get multiple simultaneous static and dynamic files............passed  [04/90]
-35) Test get multiple simultaneous static and dynamic files - memcheck.passed  [01/90]
+1. Waits for events on monitored file descriptors using `epoll`
+2. Processes events as they occur (new connections, data available, write possible, etc.)
+3. Updates the state machine for each connection
+4. Initiates appropriate asynchronous operations
+5. Monitors for completion of those operations
 
-                                                                       Total:  [90/100]
-```
+## Technical Highlights
 
-Individual tests can be run using the `./run_test.sh` bash script as the following:
-
-```
-student@so:~/operating-systems/content/assignments/async-web-server/tests$ ./_test/run_test.sh 3
-03) Test listening.....................................................passed  [01/90]
-
-```
-
-Where `3` is the test you want to run.
-
-Some tests are doubled by a memory check test.
-This will only run if the regular test passed.
-For example, test 31 will output the following in case of success:
-
-```
-student@so:~/operating-systems/content/assignments/async-web-server/tests$ ./_test/run_test.sh 31
-31) Test get one dynamic file then another.............................passed  [03/90]
-31) Test get one dynamic file then another - memcheck..................passed  [01/90]
-```
-
-and one of the following in case of error:
-
-```
-# if the regular tests failed, the memory check tests is not performed
-student@so:~/operating-systems/content/assignments/async-web-server/tests$ ./_test/run_test.sh 31
-31) Test get one dynamic file then another.............................failed  [ 0/90]
-31) Test get one dynamic file then another - memcheck..................passed  [01/90]
-```
-
-> Note: The memcheck test for failed regular tests will not be taken into consideration for the final score.
-  This output will be fixed in the next commit.
-
-
-Tests use the `static/` and `dynamic/` folders.
-These folders are created and removed using the `init` and `cleanup` arguments to `_test/run_test.sh`.
-
-### Behind the Scenes
-
-Tests are basically unit tests.
-
-Each test function follows the unit test patter: initialization, action,
-evaluation.
-
-Each test starts the server, creates a given context, checks for validity and
-then terminates the server process.
-
-### Debugging
-
-Logs are collected in `test.log` and `wget.log` files.
+- **Efficient Resource Usage**: The server optimizes system resource usage by avoiding thread per connection models
+- **Scalability**: Can handle hundreds of concurrent connections with minimal resource overhead
+- **High Performance**: Zero-copy and asynchronous I/O significantly improve throughput
+- **Reliable Error Handling**: Implemented robust error handling throughout the codebase
 
 ## Resources
 
-- [sendfile](https://man7.org/linux/man-pages/man2/sendfile.2.html)
+During implementation, I utilized the following references:
 
-- [io_setup & friends](https://man7.org/linux/man-pages/man2/io_setup.2.html)
-
-- [epoll](https://man7.org/linux/man-pages/man7/epoll.7.html)
+- [sendfile manual](https://man7.org/linux/man-pages/man2/sendfile.2.html)
+- [Linux AIO documentation](https://man7.org/linux/man-pages/man2/io_setup.2.html)
+- [epoll documentation](https://man7.org/linux/man-pages/man7/epoll.7.html)
